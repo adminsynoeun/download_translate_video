@@ -1,0 +1,16 @@
+# Ignore storage folder
+/storage/*
+
+# Ignore virtual environment
+/venv/
+
+# Ignore subtitle files
+*.srt
+
+# Ignore video files
+*.mp4
+
+# Optional: OS / editor files
+*.DS_Store
+*.swp
+*.vscode/
