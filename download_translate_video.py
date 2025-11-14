@@ -24,8 +24,15 @@ lang_translate = "km"  # Khmer
 # -------------------------
 
 # 1️⃣ Download video + subtitles
+quality_format = (
+    "bestvideo[height>=2160][vcodec!=none]+bestaudio/"
+    "bestvideo[height>=1080][vcodec!=none]+bestaudio/"
+    "bestvideo+bestaudio/"
+    "best"
+)
+
 ydl_opts = {
-    "format": "bestvideo+bestaudio/best",
+    "format": quality_format,
     "writesubtitles": True,
     "subtitleslangs": lang_targets,
     "subtitlesformat": "srt",
@@ -36,6 +43,18 @@ with yt_dlp.YoutubeDL(ydl_opts) as ydl:
     info = ydl.extract_info(video_url, download=True)
     video_filename = ydl.prepare_filename(info)
     video_title = info.get("title", "video")
+    requested_formats = info.get("requested_formats")
+    selected_video = None
+    if requested_formats:
+        for fmt in requested_formats:
+            if fmt.get("vcodec") and fmt.get("vcodec") != "none":
+                selected_video = fmt
+                break
+    if not selected_video:
+        selected_video = info
+    height = selected_video.get("height")
+    fps = selected_video.get("fps")
+    print(f"Selected video quality: {height or 'unknown'}p @ {fps or '?'}fps")
 
 # 2️⃣ Find downloaded subtitle file
 def match_subtitle_file(filename: str):
