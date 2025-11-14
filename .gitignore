@@ -10,6 +10,10 @@
 # Ignore video files
 *.mp4
 
+# Ignore video files
+*.part
+*.ytdl
+
 # Optional: OS / editor files
 *.DS_Store
 *.swp
