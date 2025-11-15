@@ -4,8 +4,20 @@ from googletrans import Translator
 import os
 import time
 import subprocess
+import shutil
+import glob
 
 # -------------------------
+# Create storage folders
+STORAGE_FOLDERS = {
+    "video": "_video",
+    "srt": "srt_file",
+    "tmp": "tmp"
+}
+
+for folder in STORAGE_FOLDERS.values():
+    os.makedirs(folder, exist_ok=True)
+
 video_url = input("Enter video URL: ")
 
 # Priority order: prefer Chinese subs, fall back to English
@@ -36,7 +48,7 @@ ydl_opts = {
     "writesubtitles": True,
     "subtitleslangs": lang_targets,
     "subtitlesformat": "srt",
-    "outtmpl": "%(title)s.%(ext)s"
+    "outtmpl": os.path.join(STORAGE_FOLDERS["tmp"], "%(title)s.%(ext)s")
 }
 
 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -57,6 +69,8 @@ with yt_dlp.YoutubeDL(ydl_opts) as ydl:
     print(f"Selected video quality: {height or 'unknown'}p @ {fps or '?'}fps")
 
 # 2️⃣ Find downloaded subtitle file
+
+
 def match_subtitle_file(filename: str):
     lower_name = filename.lower()
     if not lower_name.endswith(".srt"):
@@ -75,24 +89,28 @@ def match_subtitle_file(filename: str):
 srt_file = None
 found_lang = None
 
-for f in os.listdir("."):
+# Search for subtitle files in tmp folder
+tmp_dir = STORAGE_FOLDERS["tmp"]
+for f in os.listdir(tmp_dir):
     matched_lang = match_subtitle_file(f)
     if matched_lang:
         # ensure we keep whichever language has higher priority
         if not found_lang:
-            srt_file = f
+            srt_file = os.path.join(tmp_dir, f)
             found_lang = matched_lang
         else:
             current_priority = next(
-                (idx for idx, (lang, _) in enumerate(LANG_PRIORITY) if lang == found_lang),
+                (idx for idx, (lang, _) in enumerate(
+                    LANG_PRIORITY) if lang == found_lang),
                 float("inf")
             )
             new_priority = next(
-                (idx for idx, (lang, _) in enumerate(LANG_PRIORITY) if lang == matched_lang),
+                (idx for idx, (lang, _) in enumerate(
+                    LANG_PRIORITY) if lang == matched_lang),
                 float("inf")
             )
             if new_priority < current_priority:
-                srt_file = f
+                srt_file = os.path.join(tmp_dir, f)
                 found_lang = matched_lang
 
 if srt_file:
@@ -124,12 +142,36 @@ for item in subs:
         print("Error translating:", e)
         item.text = "[Translation Error]"
 
-kh_srt_file = f"{video_title}_kh.srt"
+# Save Khmer subtitle to srt_file folder
+kh_srt_file = os.path.join(STORAGE_FOLDERS["srt"], f"{video_title}_kh.srt")
 subs.save(kh_srt_file, encoding='utf-8')
 print(f"Khmer subtitle saved as: {kh_srt_file}")
 
+# Move original video file to _video folder
+video_basename = os.path.basename(video_filename)
+video_dest = os.path.join(STORAGE_FOLDERS["video"], video_basename)
+if os.path.exists(video_filename):
+    shutil.move(video_filename, video_dest)
+    video_filename = video_dest
+    print(f"Original video moved to: {video_dest}")
+
+# Move original subtitle file to srt_file folder
+srt_basename = os.path.basename(srt_file)
+srt_dest = os.path.join(STORAGE_FOLDERS["srt"], srt_basename)
+if os.path.exists(srt_file):
+    shutil.move(srt_file, srt_dest)
+    print(f"Original subtitle moved to: {srt_dest}")
+
+# Move temporary files (*.part, .ytdl) from current directory to tmp folder
+for temp_pattern in ["*.part", "*.ytdl"]:
+    for temp_file in glob.glob(temp_pattern):
+        if os.path.isfile(temp_file):
+            temp_dest = os.path.join(STORAGE_FOLDERS["tmp"], temp_file)
+            shutil.move(temp_file, temp_dest)
+            print(f"Temporary file moved to: {temp_dest}")
+
 # 4️⃣ Burn subtitles into video using ffmpeg
-output_video = f"{video_title}_kh.mp4"
+output_video = os.path.join(STORAGE_FOLDERS["video"], f"{video_title}_kh.mp4")
 ffmpeg_cmd = [
     "ffmpeg",
     "-i", video_filename,
